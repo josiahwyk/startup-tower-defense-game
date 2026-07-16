@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Runway Defense — A Startup Roguelite Tower Defense</title>
+<style>
+  :root{
+    --bg:#0b0e17; --panel:#131829; --panel2:#1a2138; --line:#262f4d;
+    --text:#e8ecf8; --dim:#8b93ad; --accent:#6c8cff; --accent2:#9d6cff;
+    --good:#3ddc84; --bad:#ff5470; --gold:#ffc857;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:radial-gradient(1200px 800px at 30% -10%, #182042 0%, var(--bg) 55%);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    display:flex; flex-direction:column; align-items:center; padding:14px; gap:10px;
+    user-select:none; -webkit-user-select:none;
+  }
+  h1{font-size:20px; letter-spacing:.5px; font-weight:800;}
+  h1 .sub{font-size:12px; color:var(--dim); font-weight:500; margin-left:8px;}
+  #topbar{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:8px 14px;
+    width:min(1160px,100%);
+  }
+  .stat{display:flex; align-items:center; gap:6px; font-weight:700; font-size:15px; padding:4px 10px; border-radius:8px; background:var(--panel2); border:1px solid var(--line);}
+  .stat small{color:var(--dim); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.6px;}
+  #runwayStat{color:var(--good);} #capitalStat{color:var(--gold);} #waveStat{color:var(--accent);}
+  button{
+    font-family:inherit; color:var(--text); background:var(--panel2); border:1px solid var(--line);
+    border-radius:8px; padding:8px 12px; font-size:13px; font-weight:700; cursor:pointer; transition:all .12s;
+  }
+  button:hover:not(:disabled){border-color:var(--accent); transform:translateY(-1px);}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  #startWaveBtn{background:linear-gradient(135deg,#2b62ff,#7b3dff); border:none; padding:9px 18px; font-size:14px;}
+  #speedBtn{min-width:52px;}
+  #layout{display:flex; gap:12px; width:min(1160px,100%); align-items:flex-start; flex-wrap:wrap; justify-content:center;}
+  #canvasWrap{position:relative; flex:1 1 640px; max-width:800px;}
+  canvas{
+    display:block; width:100%; border-radius:12px; border:1px solid var(--line);
+    background:#10131f; cursor:crosshair;
+  }
+  #sidebar{
+    flex:1 1 300px; max-width:340px; min-width:280px; display:flex; flex-direction:column; gap:10px;
+  }
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:10px;}
+  .panel h3{font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--dim); margin-bottom:8px;}
+  #shop{display:grid; grid-template-columns:1fr 1fr; gap:6px;}
+  .shopBtn{
+    display:flex; align-items:center; gap:7px; text-align:left; padding:7px 8px; font-size:12px; line-height:1.15;
+  }
+  .shopBtn .em{font-size:19px;}
+  .shopBtn .nm{font-weight:700; display:block;}
+  .shopBtn .cost{color:var(--gold); font-size:11px; font-weight:700;}
+  .shopBtn.placingNow{border-color:var(--good); box-shadow:0 0 0 1px var(--good);}
+  #selPanel .title{font-size:14px; font-weight:800;}
+  #selPanel .subtitle{font-size:11px; color:var(--dim); margin-bottom:6px;}
+  #selPanel .statline{font-size:12px; color:var(--text); margin:2px 0;}
+  #selPanel .statline b{color:var(--accent);}
+  .rowBtns{display:flex; gap:6px; margin-top:8px;}
+  .rowBtns button{flex:1; font-size:12px; padding:7px 4px;}
+  #upgradeBtn{border-color:#3f66ff;}
+  #sellBtn{border-color:#7a3550;}
+  .chips{display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;}
+  .chip{
+    display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700;
+    background:var(--panel2); border:1px solid var(--line); border-radius:20px; padding:4px 9px; cursor:pointer; transition:all .12s;
+  }
+  .chip:hover{border-color:var(--accent2);}
+  .chip .cnt{color:var(--gold);}
+  .hint{font-size:11px; color:var(--dim); line-height:1.5;}
+  .empty{font-size:11px; color:var(--dim); font-style:italic;}
+  /* Overlays */
+  .overlay{
+    position:absolute; inset:0; background:rgba(7,9,16,.82); backdrop-filter:blur(4px);
+    display:none; align-items:center; justify-content:center; border-radius:12px; z-index:10;
+  }
+  .overlay.show{display:flex;}
+  .overlayBox{text-align:center; padding:20px; max-width:92%;}
+  .overlayBox h2{font-size:24px; margin-bottom:6px;}
+  .overlayBox p{color:var(--dim); font-size:13px; margin-bottom:16px;}
+  #draftCards{display:flex; gap:12px; justify-content:center; flex-wrap:wrap;}
+  .draftCard{
+    width:170px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 12px;
+    cursor:pointer; transition:all .15s;
+  }
+  .draftCard:hover{transform:translateY(-4px); border-color:var(--accent); box-shadow:0 8px 24px rgba(60,90,255,.25);}
+  .draftCard .em{font-size:34px; display:block; margin-bottom:8px;}
+  .draftCard .ttl{font-weight:800; font-size:13px; margin-bottom:5px;}
+  .draftCard .dsc{font-size:11px; color:var(--dim); line-height:1.4;}
+  #gameOverBox h2{color:var(--bad);}
+  #restartBtn{background:linear-gradient(135deg,#ff3d68,#ff7b3d); border:none; padding:10px 26px; font-size:15px;}
+  #banner{
+    position:absolute; top:12px; left:50%; transform:translateX(-50%);
+    background:rgba(19,24,41,.92); border:1px solid var(--line); border-radius:10px;
+    padding:8px 20px; font-weight:800; font-size:15px; pointer-events:none; opacity:0; transition:opacity .4s; z-index:5;
+  }
+  footer{font-size:11px; color:var(--dim); text-align:center; max-width:800px; line-height:1.6;}
+  kbd{background:var(--panel2); border:1px solid var(--line); border-radius:4px; padding:1px 5px; font-size:10px;}
+</style>
+</head>
+<body>
+
+<h1>🚀 Runway Defense <span class="sub">Survive the market. Protect the burn rate.</span></h1>
+
+<div id="topbar">
+  <div class="stat" id="waveStat"><small>Wave</small><span id="waveVal">0</span></div>
+  <div class="stat" id="runwayStat"><small>Runway</small><span id="runwayVal">$100</span></div>
+  <div class="stat" id="capitalStat"><small>Capital</small><span id="capitalVal">$230</span></div>
+  <div class="stat"><small>Threats</small><span id="threatVal">—</span></div>
+  <button id="startWaveBtn">▶ Launch Wave 1</button>
+  <button id="speedBtn" title="Toggle game speed">1×</button>
+</div>
+
+<div id="layout">
+  <div id="canvasWrap">
+    <canvas id="game" width="800" height="600"></canvas>
+    <div id="banner"></div>
+
+    <div class="overlay" id="draftOverlay">
+      <div class="overlayBox">
+        <h2>📋 Board Meeting</h2>
+        <p>Wave cleared! The board offers you one of the following. Choose wisely, Founder.</p>
+        <div id="draftCards"></div>
+      </div>
+    </div>
+
+    <div class="overlay" id="gameOverOverlay">
+      <div class="overlayBox" id="gameOverBox">
+        <h2>💸 OUT OF RUNWAY</h2>
+        <p id="gameOverStats"></p>
+        <button id="restartBtn">🔄 Pivot &amp; Restart</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="sidebar">
+    <div class="panel">
+      <h3>👔 Hire Employees</h3>
+      <div id="shop"></div>
+    </div>
+
+    <div class="panel" id="selPanel">
+      <h3>🔍 Selected</h3>
+      <div id="selContent"><div class="empty">Click a placed employee to inspect, upgrade, or equip perks.</div></div>
+    </div>
+
+    <div class="panel">
+      <h3>🎁 Office Perks Inventory</h3>
+      <div id="invContent"><div class="empty">No perks yet. Earn them from drafts &amp; rare enemy drops.</div></div>
+      <div class="hint" id="invHint" style="margin-top:6px;">Select a tower, then click a perk to equip it (max 3 per tower). Click an equipped perk to remove it.</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <b>How to play:</b> Buy an employee from the shop, then click an empty tile beside the path to place them.
+  Enemies march from the 🌀 portal to your 🏢 HQ — every leak burns Runway. Between waves, draft a reward and launch the next wave.
+  <kbd>Esc</kbd> cancels placement / deselects.
+</footer>
+
+<script>
+'use strict';
+/* =========================================================
+   RUNWAY DEFENSE — a startup-themed roguelite tower defense
+   Single-file, zero dependencies, Canvas 2D.
+   ========================================================= */
+
+// ---------- Grid & Path ----------
+const COLS = 20, ROWS = 15, CELL = 40;
+const W = COLS * CELL, H = ROWS * CELL;
+
+// Winding S-shaped path defined by grid waypoints [col,row]
+const WAYPOINTS = [
+  [0, 2], [17, 2], [17, 6], [2, 6], [2, 10], [17, 10], [17, 13], [3, 13]
+];
+
+// Build the set of path cells and the pixel-space polyline
+const pathCellSet = new Set();
+(function buildPathCells() {
+  for (let i = 0; i < WAYPOINTS.length - 1; i++) {
+    let [c1, r1] = WAYPOINTS[i], [c2, r2] = WAYPOINTS[i + 1];
+    const dc = Math.sign(c2 - c1), dr = Math.sign(r2 - r1);
+    let c = c1, r = r1;
+    pathCellSet.add(c + ',' + r);
+    while (c !== c2 || r !== r2) { c += dc; r += dr; pathCellSet.add(c + ',' + r); }
+  }
+})();
+const isPathCell = (c, r) => pathCellSet.has(c + ',' + r);
+
+// Pixel polyline with an off-screen entry point so enemies slide in
+const pathPts = [{ x: -CELL, y: 2 * CELL + CELL / 2 }]
+  .concat(WAYPOINTS.map(([c, r]) => ({ x: c * CELL + CELL / 2, y: r * CELL + CELL / 2 })));
+const segLens = []; let TOTAL_LEN = 0;
+for (let i = 0; i < pathPts.length - 1; i++) {
+  const L = Math.hypot(pathPts[i + 1].x - pathPts[i].x, pathPts[i + 1].y - pathPts[i].y);
+  segLens.push(L); TOTAL_LEN += L;
+}
+function pointAt(dist) {
+  let d = Math.max(0, Math.min(dist, TOTAL_LEN - 0.001));
+  for (let i = 0; i < segLens.length; i++) {
+    if (d <= segLens[i]) {
+      const t = d / segLens[i];
+      return {
+        x: pathPts[i].x + (pathPts[i + 1].x - pathPts[i].x) * t,
+        y: pathPts[i].y + (pathPts[i + 1].y - pathPts[i].y) * t
+      };
+    }
+    d -= segLens[i];
+  }
+  return pathPts[pathPts.length - 1];
+}
+const HQ_CELL = WAYPOINTS[WAYPOINTS.length - 1];
+const SPAWN_CELL = WAYPOINTS[0];
+
+// ---------- Tower (Employee) Configuration ----------
+// tiers[0] = base hire; tiers[1..2] have .cost = upgrade price.
+const TOWERS = {
+  office: {
+    emoji: '📎', color: '#a3aec9', cost: 45, name: 'Office Ops',
+    desc: 'Cheap generalist. Throws staplers. Someone has to.',
+    tiers: [
+      { title: 'Office Coordinator',            dmg: 5,  rate: 1.6, range: 100 },
+      { title: 'Office Manager',                dmg: 9,  rate: 1.9, range: 110, cost: 55 },
+      { title: 'Head of Workplace Operations',  dmg: 15, rate: 2.3, range: 120, cost: 110 },
+    ]
+  },
+  engineer: {
+    emoji: '👩‍💻', color: '#4f8ef7', cost: 70, name: 'Software Engineer',
+    desc: 'Ships hotfixes at terrifying velocity. Fast single-target shooter.',
+    tiers: [
+      { title: 'Junior Software Engineer', dmg: 6,  rate: 2.6, range: 115 },
+      { title: 'Software Engineer II',     dmg: 11, rate: 3.3, range: 125, cost: 85 },
+      { title: 'Staff Software Engineer',  dmg: 19, rate: 4.2, range: 135, cost: 170 },
+    ]
+  },
+  qa: {
+    emoji: '🔍', color: '#5fd4d0', cost: 80, name: 'QA Engineer',
+    desc: 'Squashes bugs on sight. 2× damage vs fast enemies, high crit.',
+    tiers: [
+      { title: 'QA Tester',              dmg: 8,  rate: 2.0, range: 120, vsFast: 2, crit: 0.10 },
+      { title: 'QA Automation Engineer', dmg: 14, rate: 2.5, range: 130, vsFast: 2, crit: 0.15, cost: 90 },
+      { title: 'QA Lead',                dmg: 24, rate: 3.0, range: 140, vsFast: 2, crit: 0.20, cost: 175 },
+    ]
+  },
+  sales: {
+    emoji: '📞', color: '#ffc857', cost: 90, name: 'Sales',
+    desc: 'Always be closing. Every hit generates extra Capital.',
+    tiers: [
+      { title: 'Sales Development Representative', dmg: 5,  rate: 1.5, range: 110, income: 2 },
+      { title: 'Account Executive',                dmg: 9,  rate: 1.8, range: 120, income: 4, cost: 100 },
+      { title: 'VP of Sales',                      dmg: 15, rate: 2.2, range: 130, income: 7, cost: 190 },
+    ]
+  },
+  marketer: {
+    emoji: '📣', color: '#ff8a5c', cost: 100, name: 'Marketing',
+    desc: 'Low damage but massive reach — splash damage hits crowds.',
+    tiers: [
+      { title: 'Marketing Coordinator',   dmg: 7,  rate: 1.0, range: 120, splash: 48 },
+      { title: 'Marketing Manager',       dmg: 13, rate: 1.2, range: 130, splash: 58, cost: 110 },
+      { title: 'Chief Marketing Officer', dmg: 23, rate: 1.4, range: 145, splash: 72, cost: 210 },
+    ]
+  },
+  peopleops: {
+    emoji: '🧊', color: '#7ad7ff', cost: 90, name: 'People & Ops',
+    desc: 'Mandatory all-hands meetings. Slows all enemies in range.',
+    tiers: [
+      { title: 'HR Coordinator', slow: 0.22, range: 95,  rate: 0 },
+      { title: 'HR Generalist',  slow: 0.32, range: 115, rate: 0, cost: 95 },
+      { title: 'VP of People',   slow: 0.45, range: 140, rate: 0, cost: 185 },
+    ]
+  },
+  cs: {
+    emoji: '🤝', color: '#3ddc84', cost: 110, name: 'Customer Success',
+    desc: 'Keeps the team happy. Buffs attack speed of adjacent towers.',
+    tiers: [
+      { title: 'Customer Success Associate',    buffRate: 0.15, range: 70, rate: 0 },
+      { title: 'Customer Success Manager',      buffRate: 0.28, range: 70, rate: 0, cost: 100 },
+      { title: 'Director of Customer Success',  buffRate: 0.45, range: 70, rate: 0, cost: 190 },
+    ]
+  },
+  product: {
+    emoji: '🗺️', color: '#b98cff', cost: 110, name: 'Product',
+    desc: 'Ruthless prioritization. Buffs damage of adjacent towers.',
+    tiers: [
+      { title: 'Associate Product Manager', buffDmg: 0.15, range: 70, rate: 0 },
+      { title: 'Product Manager',           buffDmg: 0.28, range: 70, rate: 0, cost: 100 },
+      { title: 'VP of Product',             buffDmg: 0.45, range: 70, rate: 0, cost: 190 },
+    ]
+  },
+  devops: {
+    emoji: '🔥', color: '#ff6b4a', cost: 120, name: 'DevOps / SRE',
+    desc: 'Deploys on Friday. Attacks ignite enemies, burning over 3s.',
+    tiers: [
+      { title: 'DevOps Engineer',                   dmg: 6,  rate: 1.3, range: 115, burnDps: 6 },
+      { title: 'Site Reliability Engineer',         dmg: 11, rate: 1.5, range: 125, burnDps: 12, cost: 115 },
+      { title: 'Principal Site Reliability Engineer', dmg: 18, rate: 1.8, range: 135, burnDps: 22, cost: 220 },
+    ]
+  },
+  data: {
+    emoji: '📊', color: '#59b7ff', cost: 130, name: 'Data Science',
+    desc: 'Insights cascade — attacks chain between nearby enemies.',
+    tiers: [
+      { title: 'Data Analyst',        dmg: 10, rate: 1.4, range: 125, chains: 2 },
+      { title: 'Data Scientist',      dmg: 17, rate: 1.6, range: 135, chains: 3, cost: 120 },
+      { title: 'Chief Data Officer',  dmg: 28, rate: 1.9, range: 150, chains: 4, cost: 230 },
+    ]
+  },
+  security: {
+    emoji: '🛡️', color: '#9aa6ff', cost: 130, name: 'Security',
+    desc: 'Locks threats out. Attacks have a chance to stun for 0.8s.',
+    tiers: [
+      { title: 'Security Analyst',                    dmg: 9,  rate: 1.4, range: 115, stun: 0.22 },
+      { title: 'Security Engineer',                   dmg: 16, rate: 1.7, range: 125, stun: 0.32, cost: 120 },
+      { title: 'Chief Information Security Officer',  dmg: 26, rate: 2.0, range: 135, stun: 0.45, cost: 230 },
+    ]
+  },
+  legal: {
+    emoji: '⚖️', color: '#e0c9a0', cost: 140, name: 'Legal',
+    desc: 'Reads the fine print. Ignores armor; 1.75× damage vs Lawsuits.',
+    tiers: [
+      { title: 'Paralegal',        dmg: 12, rate: 1.1, range: 130, pierce: true, vsArmored: 1.75 },
+      { title: 'Corporate Counsel', dmg: 22, rate: 1.3, range: 140, pierce: true, vsArmored: 1.75, cost: 130 },
+      { title: 'General Counsel',  dmg: 38, rate: 1.5, range: 155, pierce: true, vsArmored: 1.75, cost: 250 },
+    ]
+  },
+  finance: {
+    emoji: '🧮', color: '#7dffa8', cost: 150, name: 'Finance',
+    desc: 'Audits one line item at a time. Slow, devastating, long range.',
+    tiers: [
+      { title: 'Financial Analyst',        dmg: 42,  rate: 0.55, range: 185 },
+      { title: 'Finance Manager',          dmg: 85,  rate: 0.6,  range: 205, cost: 140 },
+      { title: 'Chief Financial Officer',  dmg: 165, rate: 0.65, range: 235, cost: 270 },
+    ]
+  },
+};
+const TOWER_KEYS = Object.keys(TOWERS);
+const isSupport = (key) => TOWERS[key].tiers[0].rate === 0;
+
+// ---------- Perk (Office Add-on) Configuration ----------
+const PERKS = {
+  espresso:   { name: 'Espresso Machine',             emoji: '☕', desc: '+25% Attack Speed',                    mods: { rate: 0.25 } },
+  chair:      { name: 'Ergonomic Chair',              emoji: '🪑', desc: '+20% Range',                          mods: { range: 0.20 } },
+  claude:     { name: 'Claude Pro Plan',              emoji: '🤖', desc: '+15% Damage',                         mods: { dmg: 0.15 } },
+  headphones: { name: 'Noise Cancelling Headphones',  emoji: '🎧', desc: '+15% Crit Chance (crits deal 2×)',    mods: { crit: 0.15 } },
+  desk:       { name: 'Standing Desk',                emoji: '🧍', desc: '+10% Damage, +10% Attack Speed',      mods: { dmg: 0.10, rate: 0.10 } },
+  snacks:     { name: 'Free Snack Wall',              emoji: '🍿', desc: '+10% Range, +10% Attack Speed',       mods: { range: 0.10, rate: 0.10 } },
+  options:    { name: 'Stock Options',                emoji: '📈', desc: '+$2 Capital per attack',              mods: { income: 2 } },
+  plant:      { name: 'Office Plant',                 emoji: '🪴', desc: '+8% Damage, Range & Attack Speed',    mods: { dmg: 0.08, range: 0.08, rate: 0.08 } },
+};
+const PERK_KEYS = Object.keys(PERKS);
+const MAX_PERKS_PER_TOWER = 3;
+
+// ---------- Enemy (Threat) Configuration ----------
+const ENEMIES = {
+  bug:        { name: 'Minor Bug',            emoji: '🐛', hp: 20,  speed: 85,  armor: 0,  bounty: 8,   dmg: 3,  r: 9,  fast: true },
+  churn:      { name: 'Churn Spike',          emoji: '📉', hp: 34,  speed: 115, armor: 0,  bounty: 11,  dmg: 4,  r: 9,  fast: true },
+  competitor: { name: 'Competitor',           emoji: '😈', hp: 60,  speed: 55,  armor: 0,  bounty: 13,  dmg: 5,  r: 11 },
+  creep:      { name: 'Feature Creep',        emoji: '🐌', hp: 105, speed: 34,  armor: 2,  bounty: 17,  dmg: 6,  r: 13 },
+  lawsuit:    { name: 'Lawsuit',              emoji: '📜', hp: 170, speed: 40,  armor: 7,  bounty: 30,  dmg: 10, r: 13, armored: true },
+  boss:       { name: 'Class Action Lawsuit', emoji: '⚖️', hp: 950, speed: 27,  armor: 12, bounty: 160, dmg: 25, r: 18, armored: true, boss: true },
+};
+
+// ---------- Game State ----------
+const state = {};
+function resetState() {
+  state.wave = 0;                 // waves completed
+  state.runway = 100;
+  state.capital = 230;
+  state.towers = [];
+  state.enemies = [];
+  state.projectiles = [];
+  state.effects = [];
+  state.floats = [];
+  state.spawnQueue = [];
+  state.spawnTimer = 0;
+  state.spawnInterval = 0.8;
+  state.hpMul = 1;
+  state.waveActive = false;
+  state.draftOpen = false;
+  state.over = false;
+  state.placing = null;           // tower key being placed
+  state.selected = null;          // tower object
+  state.hover = null;             // {c,r}
+  state.inventory = {};           // perkKey -> count
+  state.kills = 0;
+  state.speedMult = 1;
+}
+resetState();
+
+// ---------- Wave Generation ----------
+function buildWave(w) {
+  const list = [];
+  const push = (k, n) => { for (let i = 0; i < n; i++) list.push(k); };
+  push('bug', 6 + Math.floor(w * 1.8));
+  if (w >= 2) push('creep', Math.max(1, Math.floor(w * 0.9)));
+  if (w >= 3) push('competitor', Math.max(1, Math.floor(w * 1.1)));
+  if (w >= 6) push('churn', Math.floor(w * 0.7));
+  if (w >= 4) push('lawsuit', Math.max(1, Math.floor(w * 0.5)));
+  // shuffle
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  // bosses arrive last, every 5th wave
+  if (w % 5 === 0) push('boss', 1 + Math.floor(w / 12));
+  return list;
+}
+
+function startWave() {
+  if (state.waveActive || state.draftOpen || state.over) return;
+  state.wave++;
+  const w = state.wave;
+  state.spawnQueue = buildWave(w);
+  state.spawnTimer = 0;
+  state.spawnInterval = Math.max(0.28, 0.9 - w * 0.035);
+  state.hpMul = (1 + 0.20 * (w - 1)) * Math.pow(1.07, w - 1);
+  state.waveActive = true;
+  showBanner(w % 5 === 0 ? `⚖️ Wave ${w} — LEGAL TROUBLE INBOUND` : `📈 Wave ${w} begins!`);
+  refreshUI();
+}
+
+function spawnEnemy(typeKey) {
+  const def = ENEMIES[typeKey];
+  const bountyMul = Math.min(3, 1 + 0.05 * (state.wave - 1));
+  state.enemies.push({
+    type: typeKey, name: def.name, emoji: def.emoji,
+    maxHp: Math.round(def.hp * state.hpMul),
+    hp: Math.round(def.hp * state.hpMul),
+    speed: def.speed, armor: def.armor,
+    bounty: Math.round(def.bounty * bountyMul),
+    dmg: def.dmg, r: def.r,
+    fast: !!def.fast, armored: !!def.armored, boss: !!def.boss,
+    dist: 0, slow: 0, stun: 0, burn: null, dead: false,
+    wobble: Math.random() * Math.PI * 2,
+  });
+}
+
+function endWave() {
+  state.waveActive = false;
+  const bonus = 40 + state.wave * 9;
+  state.capital += bonus;
+  addFloat(W / 2, H / 2 - 40, `Wave ${state.wave} cleared! +$${bonus} seed funding`, '#3ddc84', 2.2);
+  openDraft();
+  refreshUI();
+}
+
+// ---------- Post-Wave Draft ----------
+function rollDraftOption() {
+  const r = Math.random();
+  if (r < 0.45) {
+    const key = PERK_KEYS[Math.floor(Math.random() * PERK_KEYS.length)];
+    const p = PERKS[key];
+    return { kind: 'perk', key, emoji: p.emoji, title: p.name, desc: 'Office Perk — ' + p.desc };
+  } else if (r < 0.80) {
+    const amt = 110 + state.wave * 25 + Math.floor(Math.random() * 50);
+    return { kind: 'capital', amount: amt, emoji: '💰', title: `$${amt} Capital`, desc: 'An angel investor wires you a lump sum.' };
+  } else {
+    const amt = 15 + Math.floor(state.wave / 2) * 5;
+    return { kind: 'runway', amount: amt, emoji: '🏦', title: `+$${amt} Runway`, desc: 'A bridge round extends your runway (heals HQ).' };
+  }
+}
+function openDraft() {
+  state.draftOpen = true;
+  const cards = document.getElementById('draftCards');
+  cards.innerHTML = '';
+  for (let i = 0; i < 3; i++) {
+    const opt = rollDraftOption();
+    const el = document.createElement('div');
+    el.className = 'draftCard';
+    el.innerHTML = `<span class="em">${opt.emoji}</span><div class="ttl">${opt.title}</div><div class="dsc">${opt.desc}</div>`;
+    el.addEventListener('click', () => {
+      if (opt.kind === 'perk') { addPerkToInventory(opt.key); }
+      else if (opt.kind === 'capital') { state.capital += opt.amount; }
+      else { state.runway += opt.amount; }
+      state.draftOpen = false;
+      document.getElementById('draftOverlay').classList.remove('show');
+      refreshUI();
+    });
+    cards.appendChild(el);
+  }
+  document.getElementById('draftOverlay').classList.add('show');
+}
+function addPerkToInventory(key) {
+  state.inventory[key] = (state.inventory[key] || 0) + 1;
+  refreshInventory();
+}
+
+// ---------- Tower Stats, Buffs & Perks ----------
+function towerBaseTier(t) { return TOWERS[t.type].tiers[t.tier]; }
+
+function recomputeAuras() {
+  for (const t of state.towers) { t.auraDmg = 0; t.auraRate = 0; }
+  for (const s of state.towers) {
+    const base = towerBaseTier(s);
+    if (!base.buffRate && !base.buffDmg) continue;
+    for (const t of state.towers) {
+      if (t === s) continue;
+      if (Math.abs(t.c - s.c) <= 1 && Math.abs(t.r - s.r) <= 1) {
+        t.auraRate += base.buffRate || 0;
+        t.auraDmg += base.buffDmg || 0;
+      }
+    }
+  }
+}
+
+function towerStats(t) {
+  const base = towerBaseTier(t);
+  let dmgB = t.auraDmg || 0, rateB = t.auraRate || 0, rangeB = 0;
+  let crit = base.crit || 0, income = base.income || 0;
+  for (const pk of t.perks) {
+    const m = PERKS[pk].mods;
+    dmgB += m.dmg || 0; rateB += m.rate || 0; rangeB += m.range || 0;
+    crit += m.crit || 0; income += m.income || 0;
+  }
+  return {
+    dmg: (base.dmg || 0) * (1 + dmgB),
+    rate: (base.rate || 0) * (1 + rateB),
+    range: base.range * (1 + rangeB),
+    crit, income,
+    splash: base.splash || 0, slow: base.slow || 0, chains: base.chains || 0,
+    burnDps: base.burnDps || 0, stun: base.stun || 0,
+    pierce: !!base.pierce, vsArmored: base.vsArmored || 0, vsFast: base.vsFast || 0,
+    buffRate: base.buffRate || 0, buffDmg: base.buffDmg || 0,
+  };
+}
+
+// ---------- Placement / Selection / Upgrades ----------
+function canPlace(c, r) {
+  if (c < 0 || r < 0 || c >= COLS || r >= ROWS) return false;
+  if (isPathCell(c, r)) return false;
+  if (state.towers.some(t => t.c === c && t.r === r)) return false;
+  return true;
+}
+function placeTower(key, c, r) {
+  const def = TOWERS[key];
+  if (state.capital < def.cost || !canPlace(c, r)) return false;
+  state.capital -= def.cost;
+  const t = {
+    type: key, c, r, tier: 0, perks: [], cooldown: 0, spent: def.cost,
+    x: c * CELL + CELL / 2, y: r * CELL + CELL / 2, auraDmg: 0, auraRate: 0,
+  };
+  state.towers.push(t);
+  recomputeAuras();
+  state.selected = t;
+  state.placing = null;
+  refreshUI();
+  return true;
+}
+function upgradeTower(t) {
+  if (t.tier >= 2) return;
+  const cost = TOWERS[t.type].tiers[t.tier + 1].cost;
+  if (state.capital < cost) return;
+  state.capital -= cost;
+  t.spent += cost;
+  t.tier++;
+  recomputeAuras();
+  addFloat(t.x, t.y - 14, '⬆ Promoted!', '#b98cff', 1.2);
+  refreshUI();
+}
+function sellTower(t) {
+  const idx = state.towers.indexOf(t);
+  if (idx === -1) return;
+  // return equipped perks to inventory
+  for (const pk of t.perks) addPerkToInventory(pk);
+  const refund = Math.floor(t.spent * 0.6);
+  state.capital += refund;
+  state.towers.splice(idx, 1);
+  if (state.selected === t) state.selected = null;
+  recomputeAuras();
+  addFloat(t.x, t.y, `+$${refund}`, '#ffc857', 1.2);
+  refreshUI();
+}
+function equipPerk(t, key) {
+  if (!t || t.perks.length >= MAX_PERKS_PER_TOWER) return;
+  if (!state.inventory[key]) return;
+  state.inventory[key]--;
+  if (state.inventory[key] <= 0) delete state.inventory[key];
+  t.perks.push(key);
+  refreshUI();
+}
+function unequipPerk(t, idx) {
+  const key = t.perks.splice(idx, 1)[0];
+  addPerkToInventory(key);
+  refreshUI();
+}
+
+// ---------- Combat ----------
+function addFloat(x, y, txt, color, life) {
+  state.floats.push({ x, y, txt, color, t: 0, life: life || 0.9 });
+}
+
+function damageEnemy(e, amount, pierce) {
+  if (e.dead) return;
+  const eff = pierce ? amount : Math.max(1, amount - e.armor);
+  e.hp -= eff;
+  if (e.hp <= 0) {
+    e.dead = true;
+    state.kills++;
+    state.capital += e.bounty;
+    addFloat(pointAt(e.dist).x, pointAt(e.dist).y - 10, `+$${e.bounty}`, '#ffc857', 0.8);
+    // rare perk drop
+    if (Math.random() < (e.boss ? 0.5 : 0.04)) {
+      const key = PERK_KEYS[Math.floor(Math.random() * PERK_KEYS.length)];
+      addPerkToInventory(key);
+      addFloat(pointAt(e.dist).x, pointAt(e.dist).y - 26, `🎁 ${PERKS[key].name}!`, '#b98cff', 1.6);
+    }
+  }
+}
+
+function fireTower(t, target, st) {
+  const color = TOWERS[t.type].color;
+  state.projectiles.push({
+    x: t.x, y: t.y, target, speed: 340, color,
+    dmg: st.dmg, crit: st.crit, income: st.income,
+    splash: st.splash, chains: st.chains, burnDps: st.burnDps,
+    stun: st.stun, pierce: st.pierce, vsArmored: st.vsArmored, vsFast: st.vsFast,
+  });
+}
+
+function onProjectileHit(p, e) {
+  let dmg = p.dmg;
+  let crit = false;
+  if (p.crit > 0 && Math.random() < p.crit) { dmg *= 2; crit = true; }
+  if (p.vsArmored && e.armored) dmg *= p.vsArmored;
+  if (p.vsFast && e.fast) dmg *= p.vsFast;
+  if (p.income > 0) {
+    state.capital += p.income;
+    if (Math.random() < 0.2) addFloat(e ? pointAt(e.dist).x : p.x, (e ? pointAt(e.dist).y : p.y) - 22, `+$${p.income}`, '#ffc857', 0.7);
+  }
+  const pos = pointAt(e.dist);
+  if (p.splash > 0) {
+    state.effects.push({ type: 'ring', x: pos.x, y: pos.y, r: p.splash, t: 0, life: 0.3, color: p.color });
+    for (const en of state.enemies) {
+      if (en.dead) continue;
+      const ep = pointAt(en.dist);
+      if (Math.hypot(ep.x - pos.x, ep.y - pos.y) <= p.splash) {
+        damageEnemy(en, en === e ? dmg : dmg * 0.6, p.pierce);
+      }
+    }
+  } else {
+    damageEnemy(e, dmg, p.pierce);
+  }
+  if (crit) addFloat(pos.x, pos.y - 18, 'CRIT!', '#ff5470', 0.7);
+  if (p.burnDps > 0 && !e.dead) e.burn = { dps: p.burnDps, t: 3 };
+  if (p.stun > 0 && !e.dead && Math.random() < p.stun) {
+    e.stun = Math.max(e.stun, 0.8);
+    addFloat(pos.x, pos.y - 18, '🔒', '#9aa6ff', 0.6);
+  }
+  // chain lightning
+  if (p.chains > 0) {
+    const visited = new Set([e]);
+    let cur = e, curPos = pos, chainDmg = dmg;
+    for (let i = 0; i < p.chains; i++) {
+      chainDmg *= 0.65;
+      let best = null, bestD = 100;
+      for (const en of state.enemies) {
+        if (en.dead || visited.has(en)) continue;
+        const ep = pointAt(en.dist);
+        const d = Math.hypot(ep.x - curPos.x, ep.y - curPos.y);
+        if (d < bestD) { bestD = d; best = en; }
+      }
+      if (!best) break;
+      const bp = pointAt(best.dist);
+      state.effects.push({ type: 'line', x1: curPos.x, y1: curPos.y, x2: bp.x, y2: bp.y, t: 0, life: 0.22, color: '#59b7ff' });
+      damageEnemy(best, chainDmg, p.pierce);
+      visited.add(best);
+      cur = best; curPos = bp;
+    }
+  }
+}
+
+// ---------- Update Loop ----------
+function update(dt) {
+  if (state.over) return;
+
+  // spawn
+  if (state.waveActive && state.spawnQueue.length > 0) {
+    state.spawnTimer -= dt;
+    if (state.spawnTimer <= 0) {
+      spawnEnemy(state.spawnQueue.shift());
+      state.spawnTimer = state.spawnInterval;
+    }
+  }
+
+  // slow auras: reset then apply
+  for (const e of state.enemies) e.slow = 0;
+  for (const t of state.towers) {
+    const base = towerBaseTier(t);
+    if (!base.slow) continue;
+    const st = towerStats(t);
+    for (const e of state.enemies) {
+      if (e.dead) continue;
+      const ep = pointAt(e.dist);
+      if (Math.hypot(ep.x - t.x, ep.y - t.y) <= st.range) e.slow = Math.max(e.slow, st.slow);
+    }
+  }
+
+  // enemies move / burn / stun
+  for (let i = state.enemies.length - 1; i >= 0; i--) {
+    const e = state.enemies[i];
+    if (e.dead) { state.enemies.splice(i, 1); continue; }
+    if (e.burn) {
+      e.burn.t -= dt;
+      damageEnemy(e, e.burn.dps * dt, true);
+      if (e.burn.t <= 0) e.burn = null;
+      if (e.dead) { state.enemies.splice(i, 1); continue; }
+    }
+    if (e.stun > 0) { e.stun -= dt; }
+    else {
+      e.dist += e.speed * (1 - Math.min(0.75, e.slow)) * dt;
+    }
+    e.wobble += dt * 6;
+    if (e.dist >= TOTAL_LEN) {
+      state.enemies.splice(i, 1);
+      state.runway -= e.dmg;
+      addFloat(HQ_CELL[0] * CELL + CELL / 2, HQ_CELL[1] * CELL, `-$${e.dmg} runway!`, '#ff5470', 1.2);
+      if (state.runway <= 0) { state.runway = 0; gameOver(); return; }
+    }
+  }
+
+  // towers fire
+  for (const t of state.towers) {
+    const st = towerStats(t);
+    if (st.rate <= 0) continue;
+    t.cooldown -= dt;
+    if (t.cooldown > 0) continue;
+    // target: enemy furthest along the path within range
+    let best = null, bestDist = -1;
+    for (const e of state.enemies) {
+      if (e.dead) continue;
+      const ep = pointAt(e.dist);
+      if (Math.hypot(ep.x - t.x, ep.y - t.y) <= st.range && e.dist > bestDist) {
+        bestDist = e.dist; best = e;
+      }
+    }
+    if (best) {
+      fireTower(t, best, st);
+      t.cooldown = 1 / st.rate;
+    }
+  }
+
+  // projectiles
+  for (let i = state.projectiles.length - 1; i >= 0; i--) {
+    const p = state.projectiles[i];
+    if (!p.target || p.target.dead) { state.projectiles.splice(i, 1); continue; }
+    const tp = pointAt(p.target.dist);
+    const dx = tp.x - p.x, dy = tp.y - p.y;
+    const d = Math.hypot(dx, dy);
+    const step = p.speed * dt;
+    if (d <= step + p.target.r) {
+      onProjectileHit(p, p.target);
+      state.projectiles.splice(i, 1);
+    } else {
+      p.x += dx / d * step; p.y += dy / d * step;
+    }
+  }
+
+  // effects & floats
+  for (let i = state.effects.length - 1; i >= 0; i--) {
+    state.effects[i].t += dt;
+    if (state.effects[i].t >= state.effects[i].life) state.effects.splice(i, 1);
+  }
+  for (let i = state.floats.length - 1; i >= 0; i--) {
+    const f = state.floats[i];
+    f.t += dt; f.y -= 22 * dt;
+    if (f.t >= f.life) state.floats.splice(i, 1);
+  }
+
+  // wave complete?
+  if (state.waveActive && state.spawnQueue.length === 0 && state.enemies.length === 0) {
+    endWave();
+  }
+}
+
+function gameOver() {
+  state.over = true;
+  document.getElementById('gameOverStats').textContent =
+    `Your startup shut down on Wave ${state.wave} with ${state.kills} threats neutralized and a team of ${state.towers.length}. The market is brutal — try a new go-to-market.`;
+  document.getElementById('gameOverOverlay').classList.add('show');
+  refreshUI();
+}
+
+// ---------- Rendering ----------
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+function drawGrid() {
+  // ground
+  ctx.fillStyle = '#10131f';
+  ctx.fillRect(0, 0, W, H);
+  // subtle checker
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (isPathCell(c, r)) continue;
+      ctx.fillStyle = (c + r) % 2 === 0 ? '#131828' : '#111524';
+      ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
+    }
+  }
+  // path cells (distinct color)
+  for (const key of pathCellSet) {
+    const [c, r] = key.split(',').map(Number);
+    ctx.fillStyle = '#4a4160';
+    ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    ctx.fillRect(c * CELL + 2, r * CELL + 2, CELL - 4, CELL - 4);
+  }
+  // dashed center line along path
+  ctx.strokeStyle = 'rgba(255,200,87,0.5)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 8]);
+  ctx.beginPath();
+  ctx.moveTo(pathPts[0].x, pathPts[0].y);
+  for (let i = 1; i < pathPts.length; i++) ctx.lineTo(pathPts[i].x, pathPts[i].y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // grid lines (faint)
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let c = 0; c <= COLS; c++) { ctx.moveTo(c * CELL, 0); ctx.lineTo(c * CELL, H); }
+  for (let r = 0; r <= ROWS; r++) { ctx.moveTo(0, r * CELL); ctx.lineTo(W, r * CELL); }
+  ctx.stroke();
+
+  // spawn portal & HQ
+  drawEmoji('🌀', SPAWN_CELL[0] * CELL + CELL / 2, SPAWN_CELL[1] * CELL + CELL / 2, 26);
+  const hqx = HQ_CELL[0] * CELL + CELL / 2, hqy = HQ_CELL[1] * CELL + CELL / 2;
+  ctx.fillStyle = 'rgba(61,220,132,0.15)';
+  ctx.fillRect(HQ_CELL[0] * CELL, HQ_CELL[1] * CELL, CELL, CELL);
+  drawEmoji('🏢', hqx, hqy - 2, 26);
+  ctx.fillStyle = '#3ddc84';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('HQ', hqx, hqy + 17);
+}
+
+function drawEmoji(em, x, y, size) {
+  ctx.font = size + 'px "Apple Color Emoji","Segoe UI Emoji",sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(em, x, y);
+}
+
+function drawRangeCircle(x, y, range, color) {
+  ctx.beginPath();
+  ctx.arc(x, y, range, 0, Math.PI * 2);
+  ctx.fillStyle = color + '14';
+  ctx.fill();
+  ctx.strokeStyle = color + '66';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+function drawTowers() {
+  for (const t of state.towers) {
+    const def = TOWERS[t.type];
+    const x = t.c * CELL, y = t.r * CELL;
+    // body
+    ctx.fillStyle = def.color + '30';
+    ctx.strokeStyle = def.color;
+    ctx.lineWidth = state.selected === t ? 2.5 : 1.5;
+    roundRect(x + 4, y + 4, CELL - 8, CELL - 8, 8);
+    ctx.fill(); ctx.stroke();
+    drawEmoji(def.emoji, t.x, t.y - 3, 20);
+    // tier pips
+    for (let i = 0; i <= t.tier; i++) {
+      ctx.fillStyle = '#ffc857';
+      ctx.beginPath();
+      ctx.arc(t.x - 8 + i * 8, y + CELL - 8, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // perk indicator
+    if (t.perks.length > 0) {
+      ctx.fillStyle = '#b98cff';
+      ctx.beginPath();
+      ctx.arc(x + CELL - 9, y + 9, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // range + aura of selected
+  if (state.selected) {
+    const t = state.selected;
+    const st = towerStats(t);
+    drawRangeCircle(t.x, t.y, st.range, TOWERS[t.type].color);
+  }
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawEnemies() {
+  for (const e of state.enemies) {
+    const p = pointAt(e.dist);
+    const wob = Math.sin(e.wobble) * 2;
+    // body glow
+    ctx.beginPath();
+    ctx.arc(p.x, p.y + wob, e.r + 3, 0, Math.PI * 2);
+    ctx.fillStyle = e.armored ? 'rgba(224,201,160,0.22)' : 'rgba(255,84,112,0.15)';
+    ctx.fill();
+    if (e.armored) {
+      ctx.strokeStyle = '#e0c9a0';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    drawEmoji(e.emoji, p.x, p.y + wob, e.r * 2);
+    // status icons
+    if (e.slow > 0) drawEmoji('❄️', p.x - e.r - 4, p.y - e.r - 4, 9);
+    if (e.burn) drawEmoji('🔥', p.x + e.r + 4, p.y - e.r - 4, 9);
+    // hp bar
+    const bw = Math.max(20, e.r * 2.4);
+    const frac = Math.max(0, e.hp / e.maxHp);
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(p.x - bw / 2, p.y - e.r - 10 + wob, bw, 4);
+    ctx.fillStyle = frac > 0.5 ? '#3ddc84' : frac > 0.25 ? '#ffc857' : '#ff5470';
+    ctx.fillRect(p.x - bw / 2, p.y - e.r - 10 + wob, bw * frac, 4);
+  }
+}
+
+function drawProjectiles() {
+  for (const p of state.projectiles) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+    ctx.fillStyle = p.color + '33';
+    ctx.fill();
+  }
+}
+
+function drawEffects() {
+  for (const fx of state.effects) {
+    const a = 1 - fx.t / fx.life;
+    if (fx.type === 'ring') {
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, fx.r * (0.5 + 0.5 * (fx.t / fx.life)), 0, Math.PI * 2);
+      ctx.strokeStyle = fx.color;
+      ctx.globalAlpha = a * 0.8;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    } else if (fx.type === 'line') {
+      ctx.beginPath();
+      ctx.moveTo(fx.x1, fx.y1);
+      ctx.lineTo(fx.x2, fx.y2);
+      ctx.strokeStyle = fx.color;
+      ctx.globalAlpha = a;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+
+function drawFloats() {
+  for (const f of state.floats) {
+    const a = 1 - f.t / f.life;
+    ctx.globalAlpha = Math.max(0, a);
+    ctx.fillStyle = f.color;
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(f.txt, f.x, f.y);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawPlacementPreview() {
+  if (!state.hover) return;
+  const { c, r } = state.hover;
+  if (state.placing) {
+    const ok = canPlace(c, r) && state.capital >= TOWERS[state.placing].cost;
+    ctx.fillStyle = ok ? 'rgba(61,220,132,0.25)' : 'rgba(255,84,112,0.25)';
+    ctx.fillRect(c * CELL, r * CELL, CELL, CELL);
+    if (ok) {
+      const def = TOWERS[state.placing];
+      ctx.globalAlpha = 0.7;
+      drawEmoji(def.emoji, c * CELL + CELL / 2, r * CELL + CELL / 2, 20);
+      ctx.globalAlpha = 1;
+      drawRangeCircle(c * CELL + CELL / 2, r * CELL + CELL / 2, def.tiers[0].range, def.color);
+    }
+  } else if (canPlace(c, r) || state.towers.some(t => t.c === c && t.r === r)) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(c * CELL + 1, r * CELL + 1, CELL - 2, CELL - 2);
+  }
+}
+
+function render() {
+  drawGrid();
+  drawTowers();
+  drawEnemies();
+  drawProjectiles();
+  drawEffects();
+  drawFloats();
+  drawPlacementPreview();
+}
+
+// ---------- Main Loop ----------
+let lastTime = performance.now();
+function loop(now) {
+  let dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+  if (!state.draftOpen && !state.over) {
+    update(dt * state.speedMult);
+  }
+  render();
+  updateStatsBar();
+  requestAnimationFrame(loop);
+}
+
+// ---------- UI ----------
+const el = (id) => document.getElementById(id);
+
+function updateStatsBar() {
+  el('waveVal').textContent = state.waveActive ? state.wave : state.wave === 0 ? '—' : state.wave + ' ✓';
+  el('runwayVal').textContent = '$' + state.runway;
+  el('capitalVal').textContent = '$' + state.capital;
+  el('threatVal').textContent = state.waveActive
+    ? (state.enemies.length + state.spawnQueue.length) + ' left'
+    : '—';
+  const btn = el('startWaveBtn');
+  btn.disabled = state.waveActive || state.draftOpen || state.over;
+  btn.textContent = state.waveActive ? '⚔️ Wave in progress…' : `▶ Launch Wave ${state.wave + 1}`;
+}
+
+function refreshShop() {
+  const shop = el('shop');
+  shop.innerHTML = '';
+  for (const key of TOWER_KEYS) {
+    const def = TOWERS[key];
+    const b = document.createElement('button');
+    b.className = 'shopBtn' + (state.placing === key ? ' placingNow' : '');
+    b.disabled = state.capital < def.cost;
+    b.title = `${def.desc}\n\nCareer path:\n• ${def.tiers[0].title}\n• ${def.tiers[1].title}\n• ${def.tiers[2].title}`;
+    b.innerHTML = `<span class="em">${def.emoji}</span><span><span class="nm">${def.name}</span><span class="cost">$${def.cost}</span></span>`;
+    b.addEventListener('click', () => {
+      state.placing = (state.placing === key) ? null : key;
+      state.selected = null;
+      refreshUI();
+    });
+    shop.appendChild(b);
+  }
+}
+
+function statLabel(st, t) {
+  const lines = [];
+  const base = towerBaseTier(t);
+  if (st.rate > 0) {
+    lines.push(`Damage: <b>${st.dmg.toFixed(1)}</b> &nbsp; Rate: <b>${st.rate.toFixed(2)}/s</b>`);
+    lines.push(`Range: <b>${Math.round(st.range)}</b>` + (st.crit > 0 ? ` &nbsp; Crit: <b>${Math.round(st.crit * 100)}%</b>` : ''));
+  } else {
+    lines.push(`Range: <b>${Math.round(st.range)}</b>`);
+  }
+  if (st.income > 0) lines.push(`💰 Generates <b>$${st.income}</b> per attack`);
+  if (st.splash > 0) lines.push(`💥 Splash radius <b>${Math.round(st.splash)}</b>`);
+  if (st.slow > 0) lines.push(`🧊 Slows enemies by <b>${Math.round(st.slow * 100)}%</b>`);
+  if (st.chains > 0) lines.push(`⚡ Chains to <b>${st.chains}</b> extra targets`);
+  if (st.burnDps > 0) lines.push(`🔥 Burns <b>${st.burnDps}/s</b> for 3s`);
+  if (st.stun > 0) lines.push(`🔒 <b>${Math.round(st.stun * 100)}%</b> chance to stun 0.8s`);
+  if (base.buffRate) lines.push(`⏩ Adjacent towers: <b>+${Math.round(base.buffRate * 100)}%</b> attack speed`);
+  if (base.buffDmg) lines.push(`💪 Adjacent towers: <b>+${Math.round(base.buffDmg * 100)}%</b> damage`);
+  if (st.pierce) lines.push(`🗡️ Ignores armor; <b>${st.vsArmored}×</b> vs armored`);
+  if (st.vsFast) lines.push(`🐛 <b>${st.vsFast}×</b> damage vs fast enemies`);
+  if ((t.auraDmg || 0) > 0 || (t.auraRate || 0) > 0) {
+    lines.push(`✨ Team buffs: +${Math.round((t.auraDmg || 0) * 100)}% dmg, +${Math.round((t.auraRate || 0) * 100)}% speed`);
+  }
+  return lines.map(l => `<div class="statline">${l}</div>`).join('');
+}
+
+function refreshSelected() {
+  const box = el('selContent');
+  const t = state.selected;
+  if (!t) {
+    box.innerHTML = state.placing
+      ? `<div class="hint">Placing <b>${TOWERS[state.placing].name}</b> — click an empty tile beside the path. <kbd>Esc</kbd> to cancel.</div>`
+      : '<div class="empty">Click a placed employee to inspect, upgrade, or equip perks.</div>';
+    return;
+  }
+  const def = TOWERS[t.type];
+  const base = towerBaseTier(t);
+  const st = towerStats(t);
+  let html = `<div class="title">${def.emoji} ${base.title}</div>`;
+  html += `<div class="subtitle">${def.name} • Tier ${t.tier + 1}/3</div>`;
+  html += statLabel(st, t);
+  // equipped perks
+  html += `<div class="statline" style="margin-top:6px;color:var(--dim);">Perks (${t.perks.length}/${MAX_PERKS_PER_TOWER}):</div><div class="chips" id="equippedChips">`;
+  if (t.perks.length === 0) html += '<span class="empty">none equipped</span>';
+  t.perks.forEach((pk, i) => {
+    html += `<span class="chip" data-unequip="${i}" title="${PERKS[pk].desc} — click to remove">${PERKS[pk].emoji} ${PERKS[pk].name}</span>`;
+  });
+  html += '</div>';
+  box.innerHTML = html;
+
+  const row = document.createElement('div');
+  row.className = 'rowBtns';
+  const up = document.createElement('button');
+  up.id = 'upgradeBtn';
+  if (t.tier < 2) {
+    const next = def.tiers[t.tier + 1];
+    up.innerHTML = `⬆ Promote to<br>${next.title} ($${next.cost})`;
+    up.disabled = state.capital < next.cost;
+    up.addEventListener('click', () => upgradeTower(t));
+  } else {
+    up.textContent = '🏆 Max level';
+    up.disabled = true;
+  }
+  const sell = document.createElement('button');
+  sell.id = 'sellBtn';
+  sell.textContent = `💸 Sell ($${Math.floor(t.spent * 0.6)})`;
+  sell.addEventListener('click', () => sellTower(t));
+  row.appendChild(up); row.appendChild(sell);
+  box.appendChild(row);
+
+  box.querySelectorAll('[data-unequip]').forEach(chip => {
+    chip.addEventListener('click', () => unequipPerk(t, parseInt(chip.dataset.unequip, 10)));
+  });
+}
+
+function refreshInventory() {
+  const box = el('invContent');
+  const keys = Object.keys(state.inventory);
+  if (keys.length === 0) {
+    box.innerHTML = '<div class="empty">No perks yet. Earn them from drafts &amp; rare enemy drops.</div>';
+    return;
+  }
+  box.innerHTML = '<div class="chips"></div>';
+  const chips = box.querySelector('.chips');
+  for (const key of keys) {
+    const p = PERKS[key];
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.title = p.desc + (state.selected ? ' — click to equip on selected tower' : ' — select a tower first');
+    chip.innerHTML = `${p.emoji} ${p.name} <span class="cnt">×${state.inventory[key]}</span>`;
+    chip.addEventListener('click', () => {
+      if (!state.selected) { flashHint('Select a tower first!'); return; }
+      if (state.selected.perks.length >= MAX_PERKS_PER_TOWER) { flashHint('That tower already has 3 perks.'); return; }
+      equipPerk(state.selected, key);
+    });
+    chips.appendChild(chip);
+  }
+}
+
+function flashHint(msg) {
+  const h = el('invHint');
+  const orig = 'Select a tower, then click a perk to equip it (max 3 per tower). Click an equipped perk to remove it.';
+  h.textContent = '⚠️ ' + msg;
+  h.style.color = '#ffc857';
+  setTimeout(() => { h.textContent = orig; h.style.color = ''; }, 1800);
+}
+
+function showBanner(msg) {
+  const b = el('banner');
+  b.textContent = msg;
+  b.style.opacity = 1;
+  clearTimeout(showBanner._t);
+  showBanner._t = setTimeout(() => { b.style.opacity = 0; }, 2200);
+}
+
+function refreshUI() {
+  refreshShop();
+  refreshSelected();
+  refreshInventory();
+  updateStatsBar();
+}
+
+// ---------- Input ----------
+function canvasCell(evt) {
+  const rect = canvas.getBoundingClientRect();
+  const x = (evt.clientX - rect.left) * (canvas.width / rect.width);
+  const y = (evt.clientY - rect.top) * (canvas.height / rect.height);
+  return { c: Math.floor(x / CELL), r: Math.floor(y / CELL) };
+}
+canvas.addEventListener('mousemove', (e) => { state.hover = canvasCell(e); });
+canvas.addEventListener('mouseleave', () => { state.hover = null; });
+canvas.addEventListener('click', (e) => {
+  if (state.over || state.draftOpen) return;
+  const { c, r } = canvasCell(e);
+  if (state.placing) {
+    placeTower(state.placing, c, r);
+    return;
+  }
+  const t = state.towers.find(t => t.c === c && t.r === r);
+  state.selected = (t && t !== state.selected) ? t : null;
+  refreshUI();
+});
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  state.placing = null;
+  state.selected = null;
+  refreshUI();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    state.placing = null;
+    state.selected = null;
+    refreshUI();
+  }
+});
+
+el('startWaveBtn').addEventListener('click', startWave);
+el('speedBtn').addEventListener('click', () => {
+  state.speedMult = state.speedMult === 1 ? 2 : 1;
+  el('speedBtn').textContent = state.speedMult + '×';
+});
+el('restartBtn').addEventListener('click', () => {
+  resetState();
+  document.getElementById('gameOverOverlay').classList.remove('show');
+  document.getElementById('draftOverlay').classList.remove('show');
+  refreshUI();
+  showBanner('🚀 New venture founded. Good luck!');
+});
+
+// ---------- Boot ----------
+refreshUI();
+showBanner('🚀 Hire your first employees, then launch Wave 1!');
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
